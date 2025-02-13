@@ -12,6 +12,9 @@ WWW_DIR="$LARAGON_HOME/www"
 LOGS_DIR="$LARAGON_HOME/logs"
 BIN_DIR="$LARAGON_HOME/bin"
 
+# PHP versions to install
+PHP_VERSIONS=("7.4" "8.0" "8.1" "8.2")
+
 # Create base directories
 create_directories() {
     echo -e "${YELLOW}Creating Laragon folder structure...${NC}"
@@ -28,72 +31,52 @@ update_system() {
     sudo apt update && sudo apt upgrade -y
 }
 
-# Install PHP
-install_php() {
-    echo -e "${YELLOW}Installing PHP...${NC}"
-    sudo apt install -y software-properties-common
-    sudo add-apt-repository ppa:ondrej/php -y
-    sudo apt update
-    sudo apt install -y php libapache2-mod-php php-mysql php-cli php-curl php-mbstring php-xml php-zip
-    echo -e "${GREEN}PHP installed successfully!${NC}"
+# Install PHP versions
+install_php_versions() {
+    echo -e "${YELLOW}Installing PHP versions...${NC}"
+
+    for version in "${PHP_VERSIONS[@]}"; do
+        echo -e "${YELLOW}Installing PHP $version...${NC}"
+        sudo apt install -y "php$version" "libapache2-mod-php$version" "php$version-cli" "php$version-mysql" "php$version-curl" "php$version-mbstring" "php$version-xml" "php$version-zip"
+
+        PHP_BIN_DIR="$BIN_DIR/php$version"
+        mkdir -p "$PHP_BIN_DIR"
+
+        sudo ln -sf "/usr/bin/php$version" "$PHP_BIN_DIR/php"
+        sudo ln -sf "/usr/bin/php$version-cli" "$PHP_BIN_DIR/php-cli"
+        sudo ln -sf "/usr/bin/php$version-config" "$PHP_BIN_DIR/php-config"
+        echo -e "${GREEN}PHP $version installed successfully!${NC}"
+    done
 }
 
-# Install MySQL
-install_mysql() {
-    echo -e "${YELLOW}Installing MySQL...${NC}"
-    sudo apt install -y mysql-server
-    sudo mysql_secure_installation
-    echo -e "${GREEN}MySQL installed successfully!${NC}"
-    echo -e "${YELLOW}Storing logs in $LOGS_DIR/mysql.log${NC}"
-    sudo systemctl enable mysql
-    sudo systemctl start mysql
-}
-
-# Install Apache
-install_apache() {
-    echo -e "${YELLOW}Installing Apache...${NC}"
-    sudo apt install -y apache2
-    sudo systemctl enable apache2
-    sudo systemctl start apache2
-
-    # Set up logs
-    echo -e "${YELLOW}Configuring Apache logs...${NC}"
-    sudo sed -i "s|ErrorLog .*|ErrorLog ${LOGS_DIR}/apache_error.log|g" /etc/apache2/apache2.conf
-    sudo sed -i "s|CustomLog .*|CustomLog ${LOGS_DIR}/apache_access.log combined|g" /etc/apache2/apache2.conf
-
-    # Enable required Apache modules
-    sudo a2enmod rewrite
-    sudo systemctl restart apache2
-    echo -e "${GREEN}Apache installed and configured successfully!${NC}"
-}
-
-# Install phpMyAdmin
+# Install phpMyAdmin (at localhost/phpmyadmin)
 install_phpmyadmin() {
     echo -e "${YELLOW}Installing phpMyAdmin...${NC}"
     sudo apt install -y phpmyadmin
-    sudo ln -s /usr/share/phpmyadmin "$WWW_DIR/phpmyadmin"
+
+    # Link phpMyAdmin to Apache's default document root (/var/www/html)
+    sudo ln -sf /usr/share/phpmyadmin /var/www/html/phpmyadmin
+
     sudo systemctl restart apache2
-    echo -e "${GREEN}phpMyAdmin installed successfully!${NC}"
+    echo -e "${GREEN}phpMyAdmin installed successfully and accessible at http://localhost/phpmyadmin${NC}"
 }
 
-# Set up a virtual host
+# Automatically create a virtual host for a folder
 create_virtual_host() {
-    read -p "Enter project name (e.g., mysite): " PROJECT_NAME
-    PROJECT_DIR="$WWW_DIR/$PROJECT_NAME"
-    echo -e "${YELLOW}Creating virtual host for $PROJECT_NAME...${NC}"
+    FOLDER_NAME=$(basename "$1")
+    PROJECT_DIR="$WWW_DIR/$FOLDER_NAME"
+    echo -e "${YELLOW}Creating virtual host for $FOLDER_NAME...${NC}"
 
-    # Create project directory
     mkdir -p "$PROJECT_DIR"
-    echo "<?php echo 'Hello from $PROJECT_NAME!';" > "$PROJECT_DIR/index.php"
+    echo "<?php echo 'Hello from $FOLDER_NAME!';" > "$PROJECT_DIR/index.php"
 
-    # Create Apache virtual host config
-    VHOST_CONF="/etc/apache2/sites-available/$PROJECT_NAME.conf"
+    VHOST_CONF="/etc/apache2/sites-available/$FOLDER_NAME.conf"
     sudo bash -c "cat > $VHOST_CONF" <<EOL
 <VirtualHost *:80>
-    ServerName $PROJECT_NAME.local
+    ServerName $FOLDER_NAME.test
     DocumentRoot $PROJECT_DIR
-    ErrorLog $LOGS_DIR/$PROJECT_NAME-error.log
-    CustomLog $LOGS_DIR/$PROJECT_NAME-access.log combined
+    ErrorLog $LOGS_DIR/$FOLDER_NAME-error.log
+    CustomLog $LOGS_DIR/$FOLDER_NAME-access.log combined
     <Directory $PROJECT_DIR>
         AllowOverride All
         Require all granted
@@ -101,27 +84,51 @@ create_virtual_host() {
 </VirtualHost>
 EOL
 
-    # Enable the site and restart Apache
-    sudo a2ensite "$PROJECT_NAME.conf"
+    sudo a2ensite "$FOLDER_NAME.conf"
     sudo systemctl reload apache2
 
-    # Add to /etc/hosts
-    echo -e "${YELLOW}Adding $PROJECT_NAME.local to /etc/hosts...${NC}"
-    echo "127.0.0.1 $PROJECT_NAME.local" | sudo tee -a /etc/hosts > /dev/null
-    echo -e "${GREEN}Virtual host $PROJECT_NAME created successfully!${NC}"
+    echo -e "${YELLOW}Adding $FOLDER_NAME.test to /etc/hosts...${NC}"
+    echo "127.0.0.1 $FOLDER_NAME.test" | sudo tee -a /etc/hosts > /dev/null
+    echo -e "${GREEN}Virtual host $FOLDER_NAME.test created successfully!${NC}"
+}
+
+# Command to switch PHP versions
+php_switch() {
+    echo -e "${YELLOW}Switching PHP versions...${NC}"
+
+    echo "Available PHP versions:"
+    for dir in "$BIN_DIR"/php*; do
+        if [ -d "$dir" ]; then
+            version=$(basename "$dir" | sed 's/php//')
+            echo "  - PHP $version"
+        fi
+    done
+
+    read -p "Enter the PHP version to switch to (e.g., 7.4): " selected_version
+
+    if [ -d "$BIN_DIR/php$selected_version" ]; then
+        sudo update-alternatives --set php "$BIN_DIR/php$selected_version/php"
+        sudo update-alternatives --set php-config "$BIN_DIR/php$selected_version/php-config"
+        sudo update-alternatives --set php-cli "$BIN_DIR/php$selected_version/php-cli"
+
+        echo -e "${GREEN}Switched to PHP $selected_version!${NC}"
+    else
+        echo -e "${RED}PHP version $selected_version not found! Please install it first.${NC}"
+    fi
 }
 
 # Menu
 show_menu() {
     echo -e "${GREEN}Welcome to Laragon Linux Installer${NC}"
     echo "1. Update System"
-    echo "2. Install PHP"
+    echo "2. Install PHP Versions"
     echo "3. Install MySQL"
     echo "4. Install Apache"
     echo "5. Install phpMyAdmin"
-    echo "6. Create Virtual Host"
+    echo "6. Create Virtual Host for Folder"
     echo "7. Install All Components"
-    echo "8. Exit"
+    echo "8. Switch PHP Version"
+    echo "9. Exit"
 }
 
 # Main loop
@@ -131,21 +138,25 @@ while true; do
 
     case $choice in
         1) update_system ;;
-        2) install_php ;;
+        2) install_php_versions ;;
         3) install_mysql ;;
         4) install_apache ;;
         5) install_phpmyadmin ;;
-        6) create_virtual_host ;;
+        6)
+            read -p "Enter folder name: " FOLDER_NAME
+            create_virtual_host "$WWW_DIR/$FOLDER_NAME"
+            ;;
         7)
             update_system
             create_directories
-            install_php
+            install_php_versions
             install_mysql
             install_apache
             install_phpmyadmin
             echo -e "${GREEN}All components installed successfully!${NC}"
             ;;
-        8)
+        8) php_switch ;;
+        9)
             echo -e "${GREEN}Exiting. Goodbye!${NC}"
             exit 0
             ;;
