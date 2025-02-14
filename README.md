@@ -27,7 +27,7 @@ A lightweight, portable, and powerful local development environment inspired by 
 1. Clone the repository or download the script:
    ```bash
    git clone https://github.com/your-repo/laragon-linux.git
-   cd laragon-linux
+   cd linugon
 ```
 
 
@@ -35,12 +35,12 @@ A lightweight, portable, and powerful local development environment inspired by 
 
 ## Make the script executable:
 ```bash
-chmod +x laragon-linux.sh
+chmod +x linugon.sh
 ```
 
 #Run the script
 ```
-./laragon-linux.sh
+./linugon.sh
 ```
 
 # Folder Structure
