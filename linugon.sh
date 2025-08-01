@@ -7,18 +7,34 @@ YELLOW='\033[0;33m'
 NC='\033[0m' # No color
 
 # Base directories
-LARAGON_HOME="$HOME/laragon-linux"
-WWW_DIR="$LARAGON_HOME/www"
-LOGS_DIR="$LARAGON_HOME/logs"
-BIN_DIR="$LARAGON_HOME/bin"
+LINUGON_HOME="$HOME/linugon-linux"
+WWW_DIR="$LINUGON_HOME/www"
+LOGS_DIR="$LINUGON_HOME/logs"
+BIN_DIR="$LINUGON_HOME/bin"
 
 # PHP versions to install
-PHP_VERSIONS=("7.4" "8.0" "8.1" "8.2")
+PHP_VERSIONS=("8.2")
+
+# Function to show loading animation with percentage
+loading() {
+    local message="$1"
+    local max=$2
+    local current=0
+    echo -n -e "$message"
+    while [ $current -le $max ]; do
+        echo -n -e "█"
+        sleep 0.1
+        current=$((current + 1))
+        printf "\r$message [%-50s] %3d%%" "" $((current * 100 / max))
+    done
+    echo ""
+}
 
 # Create base directories
 create_directories() {
-    echo -e "${YELLOW}Creating Laragon folder structure...${NC}"
+    echo -e "${YELLOW}Creating Linugon folder structure...${NC}"
     mkdir -p "$WWW_DIR" "$LOGS_DIR" "$BIN_DIR"
+    loading "Creating directories..." 50
     echo -e "${GREEN}Folder structure created:${NC}"
     echo "  - $WWW_DIR (Projects folder)"
     echo "  - $LOGS_DIR (Logs folder)"
@@ -29,6 +45,7 @@ create_directories() {
 update_system() {
     echo -e "${YELLOW}Updating system...${NC}"
     sudo apt update && sudo apt upgrade -y
+    loading "Updating system..." 50
 }
 
 # Install PHP versions
@@ -38,6 +55,7 @@ install_php_versions() {
     for version in "${PHP_VERSIONS[@]}"; do
         echo -e "${YELLOW}Installing PHP $version...${NC}"
         sudo apt install -y "php$version" "libapache2-mod-php$version" "php$version-cli" "php$version-mysql" "php$version-curl" "php$version-mbstring" "php$version-xml" "php$version-zip"
+        loading "Installing PHP $version..." 50
 
         PHP_BIN_DIR="$BIN_DIR/php$version"
         mkdir -p "$PHP_BIN_DIR"
@@ -49,6 +67,26 @@ install_php_versions() {
     done
 }
 
+# Install MySQL
+install_mysql() {
+    echo -e "${YELLOW}Installing MySQL...${NC}"
+    sudo apt install -y mysql-server
+    sudo systemctl start mysql
+    sudo systemctl enable mysql
+    loading "Installing MySQL..." 50
+    echo -e "${GREEN}MySQL installed and running!${NC}"
+}
+
+# Install Apache
+install_apache() {
+    echo -e "${YELLOW}Installing Apache...${NC}"
+    sudo apt install -y apache2
+    sudo systemctl start apache2
+    sudo systemctl enable apache2
+    loading "Installing Apache..." 50
+    echo -e "${GREEN}Apache installed and running!${NC}"
+}
+
 # Install phpMyAdmin (at localhost/phpmyadmin)
 install_phpmyadmin() {
     echo -e "${YELLOW}Installing phpMyAdmin...${NC}"
@@ -58,6 +96,7 @@ install_phpmyadmin() {
     sudo ln -sf /usr/share/phpmyadmin /var/www/html/phpmyadmin
 
     sudo systemctl restart apache2
+    loading "Installing phpMyAdmin..." 50
     echo -e "${GREEN}phpMyAdmin installed successfully and accessible at http://localhost/phpmyadmin${NC}"
 }
 
@@ -86,6 +125,7 @@ EOL
 
     sudo a2ensite "$FOLDER_NAME.conf"
     sudo systemctl reload apache2
+    loading "Creating virtual host for $FOLDER_NAME..." 50
 
     echo -e "${YELLOW}Adding $FOLDER_NAME.test to /etc/hosts...${NC}"
     echo "127.0.0.1 $FOLDER_NAME.test" | sudo tee -a /etc/hosts > /dev/null
@@ -110,7 +150,6 @@ php_switch() {
         sudo update-alternatives --set php "$BIN_DIR/php$selected_version/php"
         sudo update-alternatives --set php-config "$BIN_DIR/php$selected_version/php-config"
         sudo update-alternatives --set php-cli "$BIN_DIR/php$selected_version/php-cli"
-
         echo -e "${GREEN}Switched to PHP $selected_version!${NC}"
     else
         echo -e "${RED}PHP version $selected_version not found! Please install it first.${NC}"
@@ -119,7 +158,7 @@ php_switch() {
 
 # Menu
 show_menu() {
-    echo -e "${GREEN}Welcome to Laragon Linux Installer${NC}"
+    echo -e "${GREEN}Welcome to Linugon Linux Installer${NC}"
     echo "1. Update System"
     echo "2. Install PHP Versions"
     echo "3. Install MySQL"
