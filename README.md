@@ -28,12 +28,8 @@ A lightweight, portable, and powerful local development environment inspired by 
    ```bash
    git clone https://github.com/your-repo/laragon-linux.git
    cd linugon
-```
-
-
-# Laragon for Linux
-
-## Make the script executable:
+    ```
+#Make the script executable
 ```bash
 chmod +x linugon.sh
 ```
