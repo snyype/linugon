@@ -14,11 +14,11 @@
 set -o pipefail
 shopt -s nullglob
 
-VERSION="2.0.3"
+VERSION="2.0.4" # x-release-please-version
 CONF_FILE="/etc/linugon.conf"
 SITES_DIR="/etc/apache2/sites-available"
 SELF_BIN="/usr/local/bin/linugon"
-SELF_URL="https://raw.githubusercontent.com/snyype/linugon/master/linugon.sh"
+RELEASE_API_URL="https://api.github.com/repos/snyype/linugon/releases/latest"
 HOSTS_FILE="/etc/hosts"
 
 # ─── Colors ──────────────────────────────────────────────────────────────────
@@ -674,26 +674,43 @@ install_self() {
 }
 
 self_update() {
-    local tmp new url
-    tmp="$(mktemp)"
-    # Bypass caches when fetching the moving master branch URL.
-    url="${SELF_URL}?v=${VERSION}-$(date +%s)"
-    if has curl; then curl -fsSL "$url" -o "$tmp"; else wget -qO "$tmp" "$url"; fi \
-        || { rm -f "$tmp"; err "Download failed: $SELF_URL"; return 1; }
-    if ! head -n 1 "$tmp" | grep -q '^#!.*bash' || ! bash -n "$tmp"; then
-        rm -f "$tmp"; err "Downloaded file is not a valid Linugon script."; return 1
-    fi
-    new="$(sed -n 's/^VERSION="\(.*\)"/\1/p' "$tmp" | head -1)"
-    if [ -z "$new" ]; then
-        rm -f "$tmp"; err "Could not read the downloaded Linugon version."; return 1
-    fi
-    if [ "$new" = "$VERSION" ]; then
-        rm -f "$tmp"; ok "Linugon is already up to date: v$VERSION ($SELF_BIN)"; return 0
-    fi
-    $SUDO install -m 755 "$tmp" "$SELF_BIN"; rm -f "$tmp"
-    ok "Linugon updated: v$VERSION → v${new:-?} ($SELF_BIN)"
-}
+    local api_tmp script_tmp tag new url latest
+    api_tmp="$(mktemp)" || return 1
+    url="${RELEASE_API_URL}?v=$(date +%s)"
+    if has curl; then
+        curl -fsSL -H 'Accept: application/vnd.github+json' "$url" -o "$api_tmp"
+    else
+        wget -qO "$api_tmp" "$url"
+    fi || { rm -f "$api_tmp"; err "Could not check the latest GitHub release."; return 1; }
 
+    tag="$(sed -nE 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$api_tmp" | head -1)"
+    rm -f "$api_tmp"
+    [[ "$tag" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+        err "The latest Linugon release has an invalid version tag."; return 1;
+    }
+    new="${tag#v}"
+    if [ "$new" = "$VERSION" ]; then
+        ok "Linugon is already up to date: v$VERSION ($SELF_BIN)"; return 0
+    fi
+    latest="$(printf '%s\n' "$VERSION" "$new" | sort -V | tail -1)"
+    if [ "$latest" = "$VERSION" ]; then
+        info "Running v$VERSION; latest release is v$new. No downgrade applied."; return 0
+    fi
+
+    script_tmp="$(mktemp)" || return 1
+    url="https://raw.githubusercontent.com/snyype/linugon/${tag}/linugon.sh?v=$(date +%s)"
+    if has curl; then curl -fsSL "$url" -o "$script_tmp"; else wget -qO "$script_tmp" "$url"; fi \
+        || { rm -f "$script_tmp"; err "Could not download Linugon v$new."; return 1; }
+    if ! head -n 1 "$script_tmp" | grep -q '^#!.*bash' || ! bash -n "$script_tmp"; then
+        rm -f "$script_tmp"; err "The downloaded Linugon release is not a valid Bash script."; return 1
+    fi
+    tag="$(sed -n 's/^VERSION="\([^"]*\)".*/\1/p' "$script_tmp" | head -1)"
+    if [ "$tag" != "$new" ]; then
+        rm -f "$script_tmp"; err "Downloaded version did not match release v$new."; return 1
+    fi
+    $SUDO install -m 755 "$script_tmp" "$SELF_BIN"; rm -f "$script_tmp"
+    ok "Linugon updated: v$VERSION -> v$new ($SELF_BIN)"
+}
 watch_enabled() { systemctl is-enabled --quiet linugon-sync.path 2>/dev/null; }
 
 enable_watch() {

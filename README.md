@@ -36,10 +36,10 @@ automatically.
 One line. This downloads Linugon to `/usr/local/bin/linugon`, so it's on your PATH:
 
 ```bash
-curl -fsSL 'https://raw.githubusercontent.com/snyype/linugon/master/install.sh?v=2.0.3' | bash
+curl -fsSL "https://raw.githubusercontent.com/snyype/linugon/master/install.sh?v=$(date +%s)" | bash
 ```
 
-No curl? `wget -qO- 'https://raw.githubusercontent.com/snyype/linugon/master/install.sh?v=2.0.3' | bash`
+No curl? `wget -qO- "https://raw.githubusercontent.com/snyype/linugon/master/install.sh?v=$(date +%s)" | bash`
 
 Then run:
 
@@ -49,6 +49,10 @@ linugon
 
 Choose **Quick install** for the full stack, or **Install components** to pick
 individual pieces. Update any time with `linugon self-update`.
+
+## Releases
+
+Releases are prepared automatically from [Conventional Commit](https://www.conventionalcommits.org/) messages on `master`. Use `fix:` for a patch release, `feat:` for a minor release, and `!` or `BREAKING CHANGE:` for a major release. Release Please opens a PR with the version and changelog updates; merging it publishes the versioned GitHub Release. `linugon update` checks that release and installs its tagged script.
 
 <details>
 <summary>Manual install (git clone)</summary>
