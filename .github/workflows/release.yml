@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-master
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Calculate version and create tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if previous_tag="$(git describe --tags --match 'v[0-9]*' --abbrev=0 2>/dev/null)"; then
+            previous_version="${previous_tag#v}"
+            commits="$(git log --format=%B "${previous_tag}..HEAD")"
+            notes="$(git log --no-merges --format='- %s' "${previous_tag}..HEAD")"
+          else
+            previous_version="$(sed -n 's/^VERSION="\([0-9.]*\)".*/\1/p' linugon.sh | head -1)"
+            commits="$(git log --format=%B HEAD)"
+            notes="$(git log --no-merges --format='- %s' HEAD)"
+          fi
+
+          if grep -Eq '^(feat|fix|perf|refactor)(\([^)]*\))?!:' <<<"$commits" || grep -q '^BREAKING CHANGE:' <<<"$commits"; then
+            bump=major
+          elif grep -Eq '^feat(\([^)]*\))?:' <<<"$commits"; then
+            bump=minor
+          elif grep -Eq '^(fix|perf|refactor)(\([^)]*\))?:' <<<"$commits"; then
+            bump=patch
+          else
+            echo "No releasable Conventional Commit found; skipping release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          IFS=. read -r major minor patch <<< "$previous_version"
+          case "$bump" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+          version="${major}.${minor}.${patch}"
+          tag="v${version}"
+
+          sed -i -E "s/^VERSION=\"[0-9]+\.[0-9]+\.[0-9]+\".*/VERSION=\"${version}\"/" linugon.sh
+          if [ -f CHANGELOG.md ]; then
+            { printf '# Changelog\n\n## [%s] - %s\n\n%s\n\n' "$tag" "$(date -u +%F)" "$notes"; tail -n +2 CHANGELOG.md; } > CHANGELOG.md.tmp
+          else
+            { printf '# Changelog\n\n## [%s] - %s\n\n%s\n' "$tag" "$(date -u +%F)" "$notes"; } > CHANGELOG.md.tmp
+          fi
+          mv CHANGELOG.md.tmp CHANGELOG.md
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add linugon.sh CHANGELOG.md
+          git commit -m "chore(release): ${tag} [skip ci]"
+          git tag -a "$tag" -m "Linugon ${tag}"
+          git push origin HEAD:master "$tag"
+
+          echo "release=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        if: steps.version.outputs.release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Linugon ${{ steps.version.outputs.version }}
+          generate_release_notes: true

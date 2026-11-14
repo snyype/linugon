@@ -52,7 +52,7 @@ individual pieces. Update any time with `linugon self-update`.
 
 ## Releases
 
-Releases are prepared automatically from [Conventional Commit](https://www.conventionalcommits.org/) messages on `master`. Use `fix:` for a patch release, `feat:` for a minor release, and `!` or `BREAKING CHANGE:` for a major release. Release Please opens a PR with the version and changelog updates; merging it publishes the versioned GitHub Release. `linugon update` checks that release and installs its tagged script.
+Push [Conventional Commit](https://www.conventionalcommits.org/) messages to `master` to publish releases automatically. Use `fix:` for a patch release, `feat:` for a minor release, and `!` or `BREAKING CHANGE:` for a major release. The release workflow updates the script version and changelog, creates a version tag, and publishes a GitHub Release. `linugon update` checks the latest release and installs its tagged script.
 
 <details>
 <summary>Manual install (git clone)</summary>
