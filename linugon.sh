@@ -14,7 +14,7 @@
 set -o pipefail
 shopt -s nullglob
 
-VERSION="2.0.1"
+VERSION="2.0.2"
 CONF_FILE="/etc/linugon.conf"
 SITES_DIR="/etc/apache2/sites-available"
 SELF_BIN="/usr/local/bin/linugon"
@@ -630,14 +630,22 @@ install_self() {
 }
 
 self_update() {
-    local tmp new
+    local tmp new url
     tmp="$(mktemp)"
-    if has curl; then curl -fsSL "$SELF_URL" -o "$tmp"; else wget -qO "$tmp" "$SELF_URL"; fi \
+    # Bypass caches when fetching the moving master branch URL.
+    url="${SELF_URL}?v=${VERSION}-$(date +%s)"
+    if has curl; then curl -fsSL "$url" -o "$tmp"; else wget -qO "$tmp" "$url"; fi \
         || { rm -f "$tmp"; err "Download failed: $SELF_URL"; return 1; }
     if ! head -n 1 "$tmp" | grep -q '^#!.*bash' || ! bash -n "$tmp"; then
         rm -f "$tmp"; err "Downloaded file is not a valid Linugon script."; return 1
     fi
     new="$(sed -n 's/^VERSION="\(.*\)"/\1/p' "$tmp" | head -1)"
+    if [ -z "$new" ]; then
+        rm -f "$tmp"; err "Could not read the downloaded Linugon version."; return 1
+    fi
+    if [ "$new" = "$VERSION" ]; then
+        rm -f "$tmp"; ok "Linugon is already up to date: v$VERSION ($SELF_BIN)"; return 0
+    fi
     $SUDO install -m 755 "$tmp" "$SELF_BIN"; rm -f "$tmp"
     ok "Linugon updated: v$VERSION → v${new:-?} ($SELF_BIN)"
 }
