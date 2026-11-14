@@ -178,7 +178,15 @@ roottext=cyan,black
 ui_menu() {
     local title="$1" text="$2"; shift 2
     if ((HAS_TUI)); then
-        whiptail --title " $title " --backtitle "$BACKTITLE" --menu "\n$text" 22 78 12 "$@" 3>&1 1>&2 2>&3
+        local size height width list_height item_count text_lines
+        size="$(ui_fit_size 30 110)"; read -r height width <<<"$size"
+        item_count=$(($# / 2))
+        text_lines="$(ui_text_lines "$text")"
+        list_height=$((height - text_lines - 7))
+        ((list_height < 1)) && list_height=1
+        ((list_height > item_count)) && list_height=$item_count
+        ((list_height > 14)) && list_height=14
+        whiptail --title " $title " --backtitle "$BACKTITLE" --menu "\n$text" "$height" "$width" "$list_height" "$@" 3>&1 1>&2 2>&3
         return
     fi
     local tags=() n=0 ans
@@ -193,12 +201,40 @@ ui_menu() {
     echo "${tags[ans - 1]}"
 }
 
+# Keep dialogs within the current terminal while using extra space when it is
+# available. The two-cell margin prevents borders from being clipped.
+ui_fit_size() {
+    local height="$1" width="$2" rows cols
+    rows="$(tput lines 2>/dev/null)"
+    cols="$(tput cols 2>/dev/null)"
+    [[ "$rows" =~ ^[0-9]+$ ]] || rows="${LINES:-24}"
+    [[ "$cols" =~ ^[0-9]+$ ]] || cols="${COLUMNS:-80}"
+    [[ "$rows" =~ ^[0-9]+$ ]] || rows=24
+    [[ "$cols" =~ ^[0-9]+$ ]] || cols=80
+    ((height > rows - 2)) && height=$((rows - 2))
+    ((width > cols - 2)) && width=$((cols - 2))
+    ((height < 12)) && height=12
+    ((width < 60)) && width=60
+    printf '%s %s\n' "$height" "$width"
+}
+
+ui_text_lines() {
+    local text="${1//\\n/$'\n'}" count=1
+    while [[ "$text" == *$'\n'* ]]; do
+        text="${text#*$'\n'}"
+        count=$((count + 1))
+    done
+    printf '%s\n' "$count"
+}
+
 # ui_checklist "Title" "Text" tag desc ON|OFF ...  → prints chosen tags, one per line
 ui_checklist() {
     local title="$1" text="$2"; shift 2
     if ((HAS_TUI)); then
+        local size height width
+        size="$(ui_fit_size 30 110)"; read -r height width <<<"$size"
         whiptail --title " $title " --backtitle "$BACKTITLE" --separate-output \
-            --checklist "\n$text\n\n(Space = toggle, Enter = confirm)" 22 78 10 "$@" 3>&1 1>&2 2>&3
+            --checklist "\n$text\n\n(Space = toggle, Enter = confirm)" "$height" "$width" 12 "$@" 3>&1 1>&2 2>&3
         return
     fi
     local tags=() defaults=() n=0 ans
@@ -218,7 +254,9 @@ ui_checklist() {
 ui_input() {
     local title="$1" text="$2" def="${3:-}" ans
     if ((HAS_TUI)); then
-        whiptail --title " $title " --backtitle "$BACKTITLE" --inputbox "\n$text" 12 78 "$def" 3>&1 1>&2 2>&3
+        local size height width
+        size="$(ui_fit_size 18 100)"; read -r height width <<<"$size"
+        whiptail --title " $title " --backtitle "$BACKTITLE" --inputbox "\n$text" "$height" "$width" "$def" 3>&1 1>&2 2>&3
         return
     fi
     read -rp "  $(printf '%b' "$text") [${def}]: " ans
@@ -228,7 +266,9 @@ ui_input() {
 ui_password() {
     local title="$1" text="$2" ans
     if ((HAS_TUI)); then
-        whiptail --title " $title " --backtitle "$BACKTITLE" --passwordbox "\n$text" 12 78 3>&1 1>&2 2>&3
+        local size height width
+        size="$(ui_fit_size 18 100)"; read -r height width <<<"$size"
+        whiptail --title " $title " --backtitle "$BACKTITLE" --passwordbox "\n$text" "$height" "$width" 3>&1 1>&2 2>&3
         return
     fi
     read -rsp "  $text: " ans; echo >&2
@@ -238,7 +278,9 @@ ui_password() {
 ui_yesno() {
     local title="$1" text="$2" ans
     if ((HAS_TUI)); then
-        whiptail --title " $title " --backtitle "$BACKTITLE" --yesno "\n$text" 14 78
+        local size height width
+        size="$(ui_fit_size 20 100)"; read -r height width <<<"$size"
+        whiptail --title " $title " --backtitle "$BACKTITLE" --yesno "\n$text" "$height" "$width"
         return
     fi
     printf '\n%b\n' "$text" | sed 's/^/  /' >&2
@@ -249,7 +291,9 @@ ui_yesno() {
 ui_msg() {
     local title="$1" text="$2"
     if ((HAS_TUI)); then
-        whiptail --title " $title " --backtitle "$BACKTITLE" --scrolltext --msgbox "\n$text" 24 82
+        local size height width
+        size="$(ui_fit_size 30 110)"; read -r height width <<<"$size"
+        whiptail --title " $title " --backtitle "$BACKTITLE" --scrolltext --msgbox "\n$text" "$height" "$width"
         return
     fi
     printf '\n  %s%s%s\n\n%b\n' "$BOLD" "$title" "$NC" "$text"
