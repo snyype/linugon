@@ -18,6 +18,7 @@ VERSION="2.0.0"
 CONF_FILE="/etc/linugon.conf"
 SITES_DIR="/etc/apache2/sites-available"
 SELF_BIN="/usr/local/bin/linugon"
+SELF_URL="https://raw.githubusercontent.com/snyype/linugon/master/linugon.sh"
 HOSTS_FILE="/etc/hosts"
 
 # ─── Colors ──────────────────────────────────────────────────────────────────
@@ -628,6 +629,19 @@ install_self() {
     $SUDO install -m 755 "$src" "$SELF_BIN"
 }
 
+self_update() {
+    local tmp new
+    tmp="$(mktemp)"
+    if has curl; then curl -fsSL "$SELF_URL" -o "$tmp"; else wget -qO "$tmp" "$SELF_URL"; fi \
+        || { rm -f "$tmp"; err "Download failed: $SELF_URL"; return 1; }
+    if ! head -n 1 "$tmp" | grep -q '^#!.*bash' || ! bash -n "$tmp"; then
+        rm -f "$tmp"; err "Downloaded file is not a valid Linugon script."; return 1
+    fi
+    new="$(sed -n 's/^VERSION="\(.*\)"/\1/p' "$tmp" | head -1)"
+    $SUDO install -m 755 "$tmp" "$SELF_BIN"; rm -f "$tmp"
+    ok "Linugon updated: v$VERSION → v${new:-?} ($SELF_BIN)"
+}
+
 watch_enabled() { systemctl is-enabled --quiet linugon-sync.path 2>/dev/null; }
 
 enable_watch() {
@@ -1021,11 +1035,13 @@ Usage: linugon [command]
   watch on|off                    Toggle automatic vhosts
   php <version>                   Switch PHP version (CLI + Apache)
   status                          Show installed components and services
+  self-update                     Download the latest Linugon to $SELF_BIN
 EOF
 }
 
 # ─── Entry point ─────────────────────────────────────────────────────────────
 main() {
+    case "${1:-}" in -v|--version) echo "$VERSION"; return 0 ;; esac
     has apt-get || die "Linugon supports Debian/Ubuntu (apt) systems only."
     if [ "$EUID" -eq 0 ] && [ "${1:-}" != "sync" ] && [ ! -f "$CONF_FILE" ]; then
         die "Run Linugon as your normal user (it will ask for sudo when needed)."
@@ -1059,6 +1075,7 @@ main() {
             esac ;;
         php)    [ -n "${2:-}" ] || { php_installed_versions; exit 0; }; sudo_keepalive; php_activate "$2" && ok "Now using PHP $2" ;;
         status) status_text ;;
+        self-update|update) sudo_keepalive; self_update ;;
         -h|--help|help) usage ;;
         -v|--version) echo "$VERSION" ;;
         *) usage; exit 1 ;;

@@ -5,6 +5,13 @@ Apache, PHP (multiple versions), MySQL/MariaDB, phpMyAdmin, Composer, Node.js an
 Redis, and gives every project folder its own `http://<name>.test` site
 automatically.
 
+**Website:** https://snyype.github.io/linugon/
+
+> Inspired by [Laragon](https://github.com/leokhoa/laragon), the open-source
+> portable dev environment for Windows by Leo Khoa. Linugon brings its
+> "folder = site" workflow to Linux. It is an independent project, not
+> affiliated with or endorsed by Laragon.
+
 ## Features
 
 - **Nice interactive UI**: dialog menus and checklists (whiptail). Falls back to plain numbered prompts when whiptail isn't installed.
@@ -26,16 +33,32 @@ automatically.
 
 ## Install
 
+One line. This downloads Linugon to `/usr/local/bin/linugon`, so it's on your PATH:
+
 ```bash
-git clone https://github.com/snyype/linugon.git
-cd linugon
-chmod +x linugon.sh
-./linugon.sh
+curl -fsSL https://raw.githubusercontent.com/snyype/linugon/master/install.sh | bash
+```
+
+No curl? `wget -qO- https://raw.githubusercontent.com/snyype/linugon/master/install.sh | bash`
+
+Then run:
+
+```bash
+linugon
 ```
 
 Choose **Quick install** for the full stack, or **Install components** to pick
-individual pieces. After the first install the script is also available as the
-`linugon` command.
+individual pieces. Update any time with `linugon self-update`.
+
+<details>
+<summary>Manual install (git clone)</summary>
+
+```bash
+git clone https://github.com/snyype/linugon.git
+cd linugon
+./linugon.sh        # also installs itself as `linugon` after the first install
+```
+</details>
 
 ## Command line
 
@@ -51,6 +74,7 @@ linugon sync                          # match vhosts to folders in www/ now
 linugon watch on|off                  # automatic vhosts on/off
 linugon php 8.3                       # switch PHP (CLI + Apache)
 linugon status
+linugon self-update                   # fetch the latest version
 ```
 
 ## Folder structure
