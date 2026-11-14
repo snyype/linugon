@@ -1,67 +1,77 @@
-# Laragon for Linux
+# Linugon — Laragon for Linux
 
-A lightweight, portable, and powerful local development environment inspired by Laragon, designed specifically for Linux users. This script automates the installation and configuration of a LAMP stack (Linux, Apache, MySQL, PHP) along with phpMyAdmin and virtual hosts.
+A Laragon-style local dev environment for Debian/Ubuntu. One script installs
+Apache, PHP (multiple versions), MySQL/MariaDB, phpMyAdmin, Composer, Node.js and
+Redis, and gives every project folder its own `http://<name>.test` site
+automatically.
 
 ## Features
-- **Structured Environment**:
-  - `www/`: Store your projects.
-  - `logs/`: Collect Apache and MySQL logs.
-  - `bin/`: Reserve space for binaries or additional tools.
-- **Components Installed**:
-  - **PHP**: Supports multiple versions with essential extensions.
-  - **MySQL**: Secured installation and logging.
-  - **Apache**: Pre-configured with log handling and virtual host support.
-  - **phpMyAdmin**: Easily manage databases through a web interface.
-- **Virtual Host Automation**:
-  - Dynamically create virtual hosts for projects.
-  - Add hostnames automatically to `/etc/hosts`.
-- **Interactive Menu**:
-  - Choose to install individual components or set up everything at once.
-  - Manage projects easily through the menu.
 
-## Prerequisites
-- A Linux system (tested on Debian-based distributions like Ubuntu).
-- `sudo` privileges.
+- **Nice interactive UI**: dialog menus and checklists (whiptail). Falls back to plain numbered prompts when whiptail isn't installed.
+- **Quick install or solo install**: install everything in one go, or tick only the components you want. Picking phpMyAdmin pulls in Apache, PHP and MySQL if they aren't installed yet.
+- **Automatic virtual hosts**: create a folder in `www/` and `http://<folder>.test` works within seconds (a systemd watcher handles it, Laragon-style). Delete the folder and the site goes away.
+  - Laravel/Symfony `public/` and Drupal/Craft `web/` doc roots are detected automatically.
+  - Folders starting with `_` or `.` are ignored.
+- **Custom virtual hosts**: any domain (`api.shop.local`, `myapp.test`) pointing at any folder. Auto-sync never touches custom hosts.
+- **Managed `/etc/hosts`**: all entries live in one `# >>> linugon` block, with no duplicates and cleanup when sites are removed.
+- **Multiple PHP versions**: on Ubuntu, optionally adds the `ondrej/php` PPA so you can choose PHP 5.6–8.x, then switch the CLI and Apache with one command.
+- **Dashboard** at `http://localhost` lists every site, with links to phpMyAdmin and `phpinfo()`.
+- **Status & services**: see versions and service state at a glance, and start, stop or restart everything.
+- Install steps show a spinner with elapsed time. The full output goes to `~/linugon-linux/logs/linugon.log`.
 
-## Installation
-1. Clone the repository or download the script:
-   ```bash
-   git clone https://github.com/your-repo/laragon-linux.git
-   cd linugon
-    ```
-#Make the script executable
+## Requirements
+
+- Debian or Ubuntu (apt-based), with systemd
+- A normal user with `sudo`. Don't run the script as root.
+
+## Install
+
 ```bash
+git clone https://github.com/snyype/linugon.git
+cd linugon
 chmod +x linugon.sh
-```
-
-#Run the script
-```
 ./linugon.sh
 ```
 
-# Folder Structure
-```
-$HOME/laragon-linux/
-├── www/          # Contains all user projects
-├── bin/          # Stores binaries like PHP, MySQL, etc.
-└── logs/         # Apache and MySQL logs
+Choose **Quick install** for the full stack, or **Install components** to pick
+individual pieces. After the first install the script is also available as the
+`linugon` command.
+
+## Command line
+
+```bash
+linugon                               # interactive menu
+linugon install all                   # Apache, PHP, MySQL, phpMyAdmin, Composer
+linugon install redis node            # solo install, just what you name
+linugon vhost add myapp               # http://myapp.test → ~/linugon-linux/www/myapp
+linugon vhost add api.shop.local ~/code/shop/public   # any domain, any folder
+linugon vhost remove api.shop.local   # project files are kept
+linugon vhost list
+linugon sync                          # match vhosts to folders in www/ now
+linugon watch on|off                  # automatic vhosts on/off
+linugon php 8.3                       # switch PHP (CLI + Apache)
+linugon status
 ```
 
-# Default Locations:
-```
-www/: Place all your project files here. Each project will have its own virtual host.
-logs/: Stores logs for Apache and MySQL.
-bin/: Reserved for tools like additional PHP versions or utilities.
-```
-
-#Virtual Hosts
+## Folder structure
 
 ```
-Choose "Create Virtual Host" from the script menu.
-Provide a project name, e.g., mysite.
-The script will:
-Create a folder in www/ for the project.
-Set up an Apache virtual host configuration.
-Add an entry to /etc/hosts (e.g., mysite.local).
-Access the project in your browser at http://mysite.local.
+~/linugon-linux/
+├── www/    # one folder per project → http://<folder>.test
+├── logs/   # per-site Apache logs + linugon.log (install output)
+└── bin/    # php<version>/php shortcuts
 ```
+
+## How it works
+
+- Settings are stored in `/etc/linugon.conf` (user, paths, domain suffix). Change the suffix from **Virtual hosts → Change domain suffix**. Avoid `.dev`/`.app` (browsers force HTTPS) and `.local` (mDNS).
+- Vhosts are written to `/etc/apache2/sites-available/linugon-<domain>.conf`.
+- `linugon-sync.path` reacts the moment a folder is added to or removed from `www/`. `linugon-sync.timer` re-checks every minute, so a `public/` folder created later (for example by `composer create-project`) gets picked up. A sync only reloads Apache when something changed.
+- Apache runs as your user (group `www-data`), so projects in your home folder work and frameworks can write to `storage/` and cache folders without `chmod 777`.
+- MySQL's `root` account uses socket auth (`sudo mysql`). The installer offers to create a password-based admin user for phpMyAdmin and your apps.
+
+## Upgrading from v1
+
+Re-run `./linugon.sh` and choose **Install components → Apache** (or run `linugon sync`).
+Old `<name>.conf` vhosts and loose `/etc/hosts` lines from v1 are migrated to the
+managed format automatically.
