@@ -908,7 +908,9 @@ menu_vhost_remove() {
         items+=("$(conf_domain "$f")" "$(conf_get type "$f")  ·  $(sed -n 's/^\s*DocumentRoot "\(.*\)"/\1/p' "$f" | head -1)")
     done < <(linugon_confs)
     [ ${#items[@]} -eq 0 ] && { ui_msg "Remove virtual host" "There are no Linugon virtual hosts."; return; }
+    items+=(0 "← Back")
     domain="$(ui_menu "Remove virtual host" "Choose a site to remove (files stay on disk):" "${items[@]}")" || return
+    [ "$domain" = 0 ] && return
     if [ "$(conf_get type "$(conf_path "$domain")")" = auto ]; then
         ui_yesno "Remove $domain" "$domain was created automatically from a folder in www/.\nIt will come back on the next sync unless you rename the\nfolder to start with '_' (e.g. _${domain%%.*}).\n\nRemove anyway?" || return
     fi
@@ -970,7 +972,9 @@ menu_php() {
         items+=("$v" "PHP $v$([ "$v" = "$active" ] && echo '   ← active')")
     done
     [ ${#items[@]} -eq 0 ] && { ui_msg "Switch PHP" "No PHP versions installed yet. Use 'Install components' first."; return; }
+    items+=(0 "← Back")
     v="$(ui_menu "Switch PHP" "Sets the version for the php CLI and Apache:" "${items[@]}")" || return
+    [ "$v" = 0 ] && return
     clear; sudo_keepalive; ensure_dirs
     run_step "Switching to PHP $v" php_activate "$v"
     pause
@@ -995,7 +999,14 @@ main_menu() {
     local choice
     while true; do
         ((HAS_TUI)) || banner
-        choice="$(ui_menu "Linugon" "What would you like to do?" \
+        choice="$(ui_menu "Linugon" " _      _ _  _ _   _  ____  _   _
+| |    | | \| | | | |/ ___|| | | |
+| |    | | .\` | | | | |  _ | | | |
+| |___ | | |\ | |_| | |_| || |_| |
+|_____||_|_| \_|\__, |\____| \___/
+                 |___/
+
+What would you like to do?" \
             1 "Quick install — everything (Apache, PHP, MySQL, phpMyAdmin, Composer)" \
             2 "Install components — pick one or several" \
             3 "Virtual hosts — auto & custom" \
