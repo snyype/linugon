@@ -287,7 +287,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
       <p class="lead">Linugon brings the Laragon workflow to Linux. One script installs Apache, PHP, MySQL and phpMyAdmin on Debian/Ubuntu. Create <code>www/shop</code> and <code>http://shop.test</code> is live seconds later.</p>
       <div class="install">
         <span class="prompt">$</span>
-        <code id="install-cmd">curl -fsSL https://raw.githubusercontent.com/snyype/linugon/master/install.sh | bash</code>
+        <code id="install-cmd">curl -fsSL 'https://raw.githubusercontent.com/snyype/linugon/master/install.sh?v=2.0.3' | bash</code>
         <button class="copy" data-copy="install-cmd">Copy</button>
       </div>
       <div class="cta-row">
@@ -497,10 +497,10 @@ when something changed.</pre>
         <li><div><h3>Install the <code>linugon</code> command</h3><p>Downloads the script to <code>/usr/local/bin/linugon</code>, which is already on your PATH.</p>
 <div class="install">
   <span class="prompt">$</span>
-  <code id="install-cmd-2">curl -fsSL https://raw.githubusercontent.com/snyype/linugon/master/install.sh | bash</code>
+  <code id="install-cmd-2">curl -fsSL 'https://raw.githubusercontent.com/snyype/linugon/master/install.sh?v=2.0.3' | bash</code>
   <button class="copy" data-copy="install-cmd-2">Copy</button>
 </div>
-<p class="alt-cmd">No curl? <code>wget -qO- https://raw.githubusercontent.com/snyype/linugon/master/install.sh | bash</code></p></div></li>
+<p class="alt-cmd">No curl? <code>wget -qO- 'https://raw.githubusercontent.com/snyype/linugon/master/install.sh?v=2.0.3' | bash</code></p></div></li>
         <li><div><h3>Set up your stack</h3><p>Choose <b>Quick install</b>, or <b>Install components</b> to pick.</p>
 <pre>linugon</pre></div></li>
         <li><div><h3>Create a project</h3><p>Then open <code>http://hello.test</code>. Update Linugon any time with <code>linugon self-update</code>.</p>

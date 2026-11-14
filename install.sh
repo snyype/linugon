@@ -10,7 +10,8 @@ set -euo pipefail
 
 REPO="snyype/linugon"
 BRANCH="${LINUGON_BRANCH:-master}"
-URL="https://raw.githubusercontent.com/$REPO/$BRANCH/linugon.sh"
+# Avoid stale cached copies of the moving branch URL.
+URL="https://raw.githubusercontent.com/$REPO/$BRANCH/linugon.sh?v=$(date +%s)"
 # /usr/local/bin is on PATH by default on Debian/Ubuntu, and it's where the
 # auto-vhost systemd service expects to find the command.
 DEST="${LINUGON_DEST:-/usr/local/bin/linugon}"

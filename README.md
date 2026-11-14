@@ -36,10 +36,10 @@ automatically.
 One line. This downloads Linugon to `/usr/local/bin/linugon`, so it's on your PATH:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/snyype/linugon/master/install.sh | bash
+curl -fsSL 'https://raw.githubusercontent.com/snyype/linugon/master/install.sh?v=2.0.3' | bash
 ```
 
-No curl? `wget -qO- https://raw.githubusercontent.com/snyype/linugon/master/install.sh | bash`
+No curl? `wget -qO- 'https://raw.githubusercontent.com/snyype/linugon/master/install.sh?v=2.0.3' | bash`
 
 Then run:
 
