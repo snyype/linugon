@@ -1,5 +1,25 @@
 # Changelog
 
+## [v2.2.0] - 2026-11-14
+
+- feat(release): publish versioned releases automatically
+- chore(master): release linugon 2.1.0
+- feat(release): automate versioned releases and updates
+- Expand TUI dialogs to terminal size
+- Bypass cached installer downloads
+- Fix cached self-updates and version reporting
+- Bump version to 2.0.1
+- Improve TUI navigation and branding
+- feat: curl installer, self-update and GitHub Pages site
+- feat: v2 — whiptail UI, solo installs, auto & custom virtual hosts
+- Update README.md
+- feat : added loading and bug fixes
+- Update README.md
+- feat : /phpmyadmin
+- Added Info on README.md
+- Mimics LARAGON Like Web tool for linux
+
+
 ## [2.1.0](https://github.com/snyype/linugon/compare/linugon-v2.0.4...linugon-v2.1.0) (2026-11-14)
 
 
