@@ -674,42 +674,52 @@ install_self() {
 }
 
 self_update() {
-    local api_tmp script_tmp tag new url latest
+    local interactive="${1:-0}" api_tmp script_tmp tag new url latest
     api_tmp="$(mktemp)" || return 1
     url="${RELEASE_API_URL}?v=$(date +%s)"
     if has curl; then
         curl -fsSL -H 'Accept: application/vnd.github+json' "$url" -o "$api_tmp"
     else
         wget -qO "$api_tmp" "$url"
-    fi || { rm -f "$api_tmp"; err "Could not check the latest GitHub release."; return 1; }
+    fi || {
+        rm -f "$api_tmp"
+        if ((interactive)); then ui_msg "Update check failed" "Could not check the latest GitHub release."; else err "Could not check the latest GitHub release."; fi
+        return 1
+    }
 
     tag="$(sed -nE 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$api_tmp" | head -1)"
     rm -f "$api_tmp"
-    [[ "$tag" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-        err "The latest Linugon release has an invalid version tag."; return 1;
-    }
+    if [[ ! "$tag" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        if ((interactive)); then ui_msg "Update check failed" "The latest Linugon release has an invalid version tag."; else err "The latest Linugon release has an invalid version tag."; fi
+        return 1
+    fi
     new="${tag#v}"
     if [ "$new" = "$VERSION" ]; then
-        ok "Linugon is already up to date: v$VERSION ($SELF_BIN)"; return 0
+        if ((interactive)); then ui_msg "Linugon is up to date" "You are running the latest release, v$VERSION."; else ok "Linugon is already up to date: v$VERSION ($SELF_BIN)"; fi
+        return 0
     fi
     latest="$(printf '%s\n' "$VERSION" "$new" | sort -V | tail -1)"
     if [ "$latest" = "$VERSION" ]; then
-        info "Running v$VERSION; latest release is v$new. No downgrade applied."; return 0
+        if ((interactive)); then ui_msg "Linugon is up to date" "You are running v$VERSION, newer than the latest release v$new."; else info "Running v$VERSION; latest release is v$new. No downgrade applied."; fi
+        return 0
+    fi
+    if ((interactive)); then
+        ui_yesno "Linugon update available" "Installed version: v$VERSION\nLatest release: v$new\n\nInstall the update now?" || return 0
     fi
 
     script_tmp="$(mktemp)" || return 1
     url="https://raw.githubusercontent.com/snyype/linugon/${tag}/linugon.sh?v=$(date +%s)"
     if has curl; then curl -fsSL "$url" -o "$script_tmp"; else wget -qO "$script_tmp" "$url"; fi \
-        || { rm -f "$script_tmp"; err "Could not download Linugon v$new."; return 1; }
+        || { rm -f "$script_tmp"; if ((interactive)); then ui_msg "Update failed" "Could not download Linugon v$new."; else err "Could not download Linugon v$new."; fi; return 1; }
     if ! head -n 1 "$script_tmp" | grep -q '^#!.*bash' || ! bash -n "$script_tmp"; then
-        rm -f "$script_tmp"; err "The downloaded Linugon release is not a valid Bash script."; return 1
+        rm -f "$script_tmp"; if ((interactive)); then ui_msg "Update failed" "The downloaded release is not a valid Bash script."; else err "The downloaded Linugon release is not a valid Bash script."; fi; return 1
     fi
     tag="$(sed -n 's/^VERSION="\([^"]*\)".*/\1/p' "$script_tmp" | head -1)"
     if [ "$tag" != "$new" ]; then
-        rm -f "$script_tmp"; err "Downloaded version did not match release v$new."; return 1
+        rm -f "$script_tmp"; if ((interactive)); then ui_msg "Update failed" "Downloaded version did not match release v$new."; else err "Downloaded version did not match release v$new."; fi; return 1
     fi
     $SUDO install -m 755 "$script_tmp" "$SELF_BIN"; rm -f "$script_tmp"
-    ok "Linugon updated: v$VERSION -> v$new ($SELF_BIN)"
+    if ((interactive)); then ui_msg "Linugon updated" "Updated from v$VERSION to v$new. Restart Linugon to use the new version."; else ok "Linugon updated: v$VERSION -> v$new ($SELF_BIN)"; fi
 }
 watch_enabled() { systemctl is-enabled --quiet linugon-sync.path 2>/dev/null; }
 
@@ -1215,6 +1225,7 @@ What would you like to do?" \
             5 "Services — start / stop / restart" \
             6 "Status" \
             7 "Update system packages" \
+            8 "Check for Linugon updates" \
             0 "Exit")" || { clear; exit 0; }
         case "$choice" in
             1) ui_yesno "Quick install" "Install Apache, PHP, MySQL, phpMyAdmin and Composer,\nand turn on automatic virtual hosts for $WWW_DIR?" \
@@ -1225,6 +1236,7 @@ What would you like to do?" \
             5) menu_services ;;
             6) ui_msg "Status" "$(status_text)" ;;
             7) clear; update_system; pause ;;
+            8) sudo_keepalive; self_update 1 ;;
             0) clear; exit 0 ;;
         esac
     done
