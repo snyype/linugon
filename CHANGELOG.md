@@ -1,5 +1,10 @@
 # Changelog
 
+## [v2.6.2] - 2026-11-15
+
+- fix(update): check latest release without API
+
+
 ## [v2.6.1] - 2026-11-15
 
 - fix(tui): add update restart and back controls
