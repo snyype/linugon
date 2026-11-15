@@ -1,5 +1,10 @@
 # Changelog
 
+## [v2.7.0] - 2026-11-15
+
+- feat(tui): wrap navigation at list boundaries
+
+
 ## [v2.6.2] - 2026-11-15
 
 - fix(update): check latest release without API
