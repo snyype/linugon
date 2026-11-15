@@ -935,6 +935,38 @@ service_packages() {
     done < <(dpkg-query -W -f='${binary:Package}\t${db:Status-Abbrev}\n' 2>/dev/null)
 }
 
+cleanup_service_leftovers() {
+    local service="$1" f tmp dir dirs=()
+    case "$service" in
+        apache2)
+            $SUDO systemctl disable --now linugon-sync.path linugon-sync.timer 2>/dev/null || true
+            $SUDO rm -f /etc/systemd/system/linugon-sync.service \
+                /etc/systemd/system/linugon-sync.path /etc/systemd/system/linugon-sync.timer
+            $SUDO systemctl daemon-reload 2>/dev/null || true
+            for f in "$SITES_DIR"/linugon-*.conf /etc/apache2/sites-enabled/linugon-*.conf; do
+                [ -e "$f" ] && $SUDO rm -f -- "$f"
+            done
+            $SUDO rm -f /etc/apache2/conf-available/linugon.conf /etc/apache2/conf-enabled/linugon.conf
+            if [ -f /var/www/html/index.php ] && grep -q 'Managed by Linugon' /var/www/html/index.php; then
+                $SUDO rm -f /var/www/html/index.php
+            fi
+            tmp="$(mktemp)"
+            if sed '/^# >>> linugon/,/^# <<< linugon/d' "$HOSTS_FILE" >"$tmp"; then
+                $SUDO tee "$HOSTS_FILE" <"$tmp" >/dev/null
+            fi
+            rm -f "$tmp"
+            dirs=(/etc/apache2/sites-enabled /etc/apache2/sites-available \
+                /etc/apache2/conf-enabled /etc/apache2/conf-available \
+                /etc/apache2/mods-enabled /etc/apache2/mods-available /etc/apache2)
+            ;;
+        mysql|mariadb) dirs=(/etc/mysql /var/log/mysql) ;;
+        redis-server) dirs=(/etc/redis /var/log/redis) ;;
+    esac
+    for dir in "${dirs[@]}"; do
+        $SUDO rmdir -- "$dir" 2>/dev/null || true
+    done
+}
+
 uninstall_service() {
     local service="$1" label packages=()
     mapfile -t packages < <(service_packages "$service")
@@ -948,18 +980,21 @@ uninstall_service() {
         mysql|mariadb) label="Database ($service)" ;;
         redis-server) label="Redis" ;;
     esac
-    ui_yesno "Uninstall $label" "Remove the installed $label service packages with apt?\n\nThis removes the service packages without running apt purge." || return
+    ui_yesno "Uninstall $label" "Remove the installed $label service packages?\n\nLinugon-owned leftovers and empty service folders will be cleaned after removal." || return
     sudo_keepalive
-    run_step "Removing $label service packages" $SUDO apt-get remove -y -q "${packages[@]}"
+    if run_step "Removing $label service packages" $SUDO apt-get remove -y -q "${packages[@]}"; then
+        cleanup_service_leftovers "$service"
+    fi
     pause
 }
 
 uninstall_all_services() {
-    local db service package packages=() service_pkgs=()
+    local db service package packages=() service_pkgs=() services_to_clean=()
     local -A seen=()
     db="$(db_service)"
     for service in apache2 "$db" redis-server; do
         mapfile -t service_pkgs < <(service_packages "$service")
+        [ ${#service_pkgs[@]} -gt 0 ] && services_to_clean+=("$service")
         for package in "${service_pkgs[@]}"; do
             [ -n "${seen[$package]:-}" ] && continue
             seen[$package]=1
@@ -970,9 +1005,13 @@ uninstall_all_services() {
         ui_msg "Uninstall all services" "No installed Linugon service packages were found."
         return
     fi
-    ui_yesno "Uninstall all services" "Remove all installed Apache, database, and Redis service packages?\n\nThis removes the packages without running apt purge." || return
+    ui_yesno "Uninstall all services" "Remove all installed Apache, database, and Redis service packages?\n\nLinugon-owned leftovers and empty service folders will be cleaned after removal." || return
     sudo_keepalive
-    run_step "Removing all service packages" $SUDO apt-get remove -y -q "${packages[@]}"
+    if run_step "Removing all service packages" $SUDO apt-get remove -y -q "${packages[@]}"; then
+        for service in "${services_to_clean[@]}"; do
+            cleanup_service_leftovers "$service"
+        done
+    fi
     pause
 }
 
