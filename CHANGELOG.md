@@ -1,5 +1,10 @@
 # Changelog
 
+## [v2.4.1] - 2026-11-15
+
+- fix(services): clean Linugon leftovers on uninstall
+
+
 ## [v2.4.0] - 2026-11-15
 
 - feat(services): add service uninstall options
