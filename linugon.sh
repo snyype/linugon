@@ -178,16 +178,51 @@ roottext=cyan,black
 ui_menu() {
     local title="$1" text="$2"; shift 2
     if ((HAS_TUI)); then
-        local size height width list_height item_count text_lines
+        local size height width list_height item_count text_lines display_width row start i
+        local selected=0
+        local tags=() labels=()
+        while (($# >= 2)); do tags+=("$1"); labels+=("$2"); shift 2; done
+        item_count=${#tags[@]}
+        ((item_count > 0)) || return 1
         size="$(ui_fit_size 30 110)"; read -r height width <<<"$size"
-        item_count=$(($# / 2))
         text_lines="$(ui_text_lines "$text")"
         list_height=$((height - text_lines - 7))
         ((list_height < 1)) && list_height=1
         ((list_height > item_count)) && list_height=$item_count
         ((list_height > 14)) && list_height=14
-        whiptail --title " $title " --backtitle "$BACKTITLE" --menu "\n$text" "$height" "$width" "$list_height" "$@" 3>&1 1>&2 2>&3
-        return
+        display_width=$((width - 4))
+        while true; do
+            ui_render_header "$title" "$text"
+            start=$((selected - list_height + 1))
+            ((start < 0)) && start=0
+            ((selected < start)) && start=$selected
+            for ((i = start; i < item_count && i < start + list_height; i++)); do
+                row="${tags[i]}) ${labels[i]}"
+                printf -v row '%-*.*s' "$display_width" "$display_width" "$row"
+                if ((i == selected)); then
+                    printf '\033[7m  %s  \033[0m\n' "$row" >/dev/tty
+                else
+                    printf '  %s\n' "$row" >/dev/tty
+                fi
+            done
+            printf '\n  ↑/↓ Move  Enter Select  Esc Back\n' >/dev/tty
+            ui_read_key
+            case "$REPLY" in
+                UP) selected=$(((selected + item_count - 1) % item_count)) ;;
+                DOWN) selected=$(((selected + 1) % item_count)) ;;
+                ENTER) printf '%s\n' "${tags[selected]}"; return 0 ;;
+                ESC) return 1 ;;
+                KEY:*)
+                    local key="${REPLY#KEY:}" lower
+                    lower="$(printf '%s' "$key" | tr '[:upper:]' '[:lower:]')"
+                    for ((i = 0; i < item_count; i++)); do
+                        if [[ "$(printf '%s' "${tags[i]:0:1}" | tr '[:upper:]' '[:lower:]')" == "$lower" ]]; then
+                            selected=$i; break
+                        fi
+                    done
+                    ;;
+            esac
+        done
     fi
     local tags=() n=0 ans
     printf '\n  %s%s%s\n  %s\n\n' "$BOLD" "$title" "$NC" "$text" >&2
@@ -227,15 +262,81 @@ ui_text_lines() {
     printf '%s\n' "$count"
 }
 
+ui_render_header() {
+    local title="$1" text="${2//\\n/$'\n'}" line
+    printf '\033[2J\033[H%s%s%s\n\n%s%s%s\n\n' "$CYAN" "$BACKTITLE" "$NC" "$BOLD" "$title" "$NC" >/dev/tty
+    while IFS= read -r line; do printf '  %s\n' "$line" >/dev/tty; done <<<"$text"
+    printf '\n' >/dev/tty
+}
+
+ui_read_key() {
+    local key sequence
+    IFS= read -rsn1 key </dev/tty || { REPLY=ESC; return 0; }
+    case "$key" in
+        $'\e')
+            if IFS= read -rsn1 -t 0.1 sequence </dev/tty; then
+                if [[ "$sequence" == '[' || "$sequence" == 'O' ]]; then
+                    IFS= read -rsn1 -t 0.1 sequence </dev/tty || sequence=""
+                    case "$sequence" in A) REPLY=UP ;; B) REPLY=DOWN ;; C) REPLY=RIGHT ;; D) REPLY=LEFT ;; *) REPLY=ESC ;; esac
+                else
+                    REPLY=ESC
+                fi
+            else
+                REPLY=ESC
+            fi
+            ;;
+        $'\n'|$'\r') REPLY=ENTER ;;
+        ' ') REPLY=SPACE ;;
+        *) REPLY="KEY:$key" ;;
+    esac
+}
+
 # ui_checklist "Title" "Text" tag desc ON|OFF ...  → prints chosen tags, one per line
 ui_checklist() {
     local title="$1" text="$2"; shift 2
     if ((HAS_TUI)); then
-        local size height width
+        local size height width list_height display_width prompt start i row
+        local selected=0 n=0
+        local tags=() labels=() states=()
+        while (($# >= 3)); do
+            tags+=("$1"); labels+=("$2"); states+=("$3")
+            n=$((n + 1)); shift 3
+        done
+        ((n > 0)) || return 1
         size="$(ui_fit_size 30 110)"; read -r height width <<<"$size"
-        whiptail --title " $title " --backtitle "$BACKTITLE" --separate-output \
-            --checklist "\n$text\n\n(Space = toggle, Enter = confirm)" "$height" "$width" 12 "$@" 3>&1 1>&2 2>&3
-        return
+        prompt="$text\n\nSpace = toggle, Enter = confirm"
+        list_height=$((height - $(ui_text_lines "$prompt") - 7))
+        ((list_height < 1)) && list_height=1
+        ((list_height > n)) && list_height=$n
+        ((list_height > 12)) && list_height=12
+        display_width=$((width - 4))
+        while true; do
+            ui_render_header "$title" "$prompt"
+            start=$((selected - list_height + 1))
+            ((start < 0)) && start=0
+            ((selected < start)) && start=$selected
+            for ((i = start; i < n && i < start + list_height; i++)); do
+                row="[$([[ "${states[i]}" = ON ]] && printf x || printf ' ')] ${labels[i]}"
+                printf -v row '%-*.*s' "$display_width" "$display_width" "$row"
+                if ((i == selected)); then
+                    printf '\033[7m  %s  \033[0m\n' "$row" >/dev/tty
+                else
+                    printf '  %s\n' "$row" >/dev/tty
+                fi
+            done
+            printf '\n  ↑/↓ Move  Space Toggle  Enter Confirm  Esc Back\n' >/dev/tty
+            ui_read_key
+            case "$REPLY" in
+                UP) selected=$(((selected + n - 1) % n)) ;;
+                DOWN) selected=$(((selected + 1) % n)) ;;
+                SPACE) [[ "${states[selected]}" = ON ]] && states[selected]=OFF || states[selected]=ON ;;
+                ENTER)
+                    for ((i = 0; i < n; i++)); do [[ "${states[i]}" = ON ]] && printf '%s\n' "${tags[i]}"; done
+                    return 0
+                    ;;
+                ESC) return 1 ;;
+            esac
+        done
     fi
     local tags=() defaults=() n=0 ans
     printf '\n  %s%s%s\n  %s\n\n' "$BOLD" "$title" "$NC" "$text" >&2
