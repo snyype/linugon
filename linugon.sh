@@ -917,6 +917,10 @@ svc() {
     case "$s" in active) echo "● running" ;; "") echo "-" ;; *) echo "○ $s" ;; esac
 }
 
+service_available() {
+    systemctl list-unit-files "$1.service" 2>/dev/null | grep -q "$1"
+}
+
 status_text() {
     local apache_v php_v db_v mods n
     apache_v="$(/usr/sbin/apache2 -v 2>/dev/null | sed -n 's/.*Apache\/\([0-9.]*\).*/\1/p')"
@@ -1049,19 +1053,53 @@ menu_php() {
     pause
 }
 
-menu_services() {
-    local choice action db
+menu_service_one() {
+    local db s label selected action choice items=()
     db="$(db_service)"
-    choice="$(ui_menu "Services" "Apache: $(svc apache2)   ·   Database: $(svc "$db")" \
-        1 "Start all" 2 "Stop all" 3 "Restart all" 0 "← Back")" || return
+    for s in apache2 "$db" redis-server; do
+        service_available "$s" || continue
+        case "$s" in
+            apache2) label="Apache" ;;
+            mysql|mariadb) label="Database ($s)" ;;
+            redis-server) label="Redis" ;;
+        esac
+        items+=("$s" "$label  ·  $(svc "$s")")
+    done
+    if [ ${#items[@]} -eq 0 ]; then
+        ui_msg "Manage service" "No Linugon services are installed."
+        return
+    fi
+    items+=(0 "← Back")
+    selected="$(ui_menu "Select service" "Choose the service to manage:" "${items[@]}")" || return
+    [ "$selected" = 0 ] && return
+    choice="$(ui_menu "Manage $selected" "Current state: $(svc "$selected")" \
+        1 "Start $selected" 2 "Stop $selected" 3 "Restart $selected" 0 "← Back")" || return
     case "$choice" in 1) action=start ;; 2) action=stop ;; 3) action=restart ;; *) return ;; esac
     clear; sudo_keepalive
-    local s
-    for s in apache2 "$db" redis-server; do
-        systemctl list-unit-files "$s.service" 2>/dev/null | grep -q "$s" || continue
-        $SUDO systemctl "$action" "$s" && ok "$action $s" || err "$action $s failed"
-    done
+    $SUDO systemctl "$action" "$selected" && ok "$action $selected" || err "$action $selected failed"
     pause
+}
+
+menu_services() {
+    local choice action db s
+    db="$(db_service)"
+    while true; do
+        choice="$(ui_menu "Services" "Apache: $(svc apache2)   ·   Database: $(svc "$db")" \
+            1 "Start all" 2 "Stop all" 3 "Restart all" 4 "Manage one service" 0 "← Back")" || return
+        case "$choice" in
+            4) menu_service_one; continue ;;
+            1) action=start ;;
+            2) action=stop ;;
+            3) action=restart ;;
+            *) return ;;
+        esac
+        clear; sudo_keepalive
+        for s in apache2 "$db" redis-server; do
+            service_available "$s" || continue
+            $SUDO systemctl "$action" "$s" && ok "$action $s" || err "$action $s failed"
+        done
+        pause
+    done
 }
 
 main_menu() {
