@@ -14,7 +14,7 @@
 set -o pipefail
 shopt -s nullglob
 
-VERSION="2.2.0"
+VERSION="2.3.0"
 CONF_FILE="/etc/linugon.conf"
 SITES_DIR="/etc/apache2/sites-available"
 SELF_BIN="/usr/local/bin/linugon"

@@ -1,5 +1,10 @@
 # Changelog
 
+## [v2.3.0] - 2026-11-15
+
+- feat(services): manage services individually
+
+
 ## [v2.2.0] - 2026-11-14
 
 - feat(release): publish versioned releases automatically
