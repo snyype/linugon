@@ -1,5 +1,10 @@
 # Changelog
 
+## [v2.3.1] - 2026-11-15
+
+- fix(tui): correct Linugon ASCII wordmark
+
+
 ## [v2.3.0] - 2026-11-15
 
 - feat(services): manage services individually
