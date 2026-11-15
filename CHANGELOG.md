@@ -1,5 +1,10 @@
 # Changelog
 
+## [v2.5.0] - 2026-11-15
+
+- feat(tui): add Linugon update check
+
+
 ## [v2.4.1] - 2026-11-15
 
 - fix(services): clean Linugon leftovers on uninstall
