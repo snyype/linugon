@@ -18,7 +18,7 @@ VERSION="2.6.1"
 CONF_FILE="/etc/linugon.conf"
 SITES_DIR="/etc/apache2/sites-available"
 SELF_BIN="/usr/local/bin/linugon"
-RELEASE_API_URL="https://api.github.com/repos/snyype/linugon/releases/latest"
+RELEASE_PAGE_URL="https://github.com/snyype/linugon/releases/latest"
 HOSTS_FILE="/etc/hosts"
 
 # ─── Colors ──────────────────────────────────────────────────────────────────
@@ -693,21 +693,11 @@ install_self() {
 }
 
 self_update() {
-    local interactive="${1:-0}" api_tmp script_tmp tag new url latest
-    api_tmp="$(mktemp)" || return 1
-    url="${RELEASE_API_URL}?v=$(date +%s)"
-    if has curl; then
-        curl -fsSL -H 'Accept: application/vnd.github+json' "$url" -o "$api_tmp"
-    else
-        wget -qO "$api_tmp" "$url"
-    fi || {
-        rm -f "$api_tmp"
-        if ((interactive)); then ui_msg "Update check failed" "Could not check the latest GitHub release."; else err "Could not check the latest GitHub release."; fi
+    local interactive="${1:-0}" script_tmp tag new url latest
+    tag="$(latest_release_tag)" || {
+        if ((interactive)); then ui_msg "Update check failed" "Could not reach GitHub Releases. Check your connection and try again."; else err "Could not reach GitHub Releases."; fi
         return 1
     }
-
-    tag="$(sed -nE 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$api_tmp" | head -1)"
-    rm -f "$api_tmp"
     if [[ ! "$tag" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         if ((interactive)); then ui_msg "Update check failed" "The latest Linugon release has an invalid version tag."; else err "The latest Linugon release has an invalid version tag."; fi
         return 1
@@ -746,6 +736,24 @@ self_update() {
         ok "Linugon updated: v$VERSION -> v$new ($SELF_BIN)"
     fi
 }
+
+latest_release_tag() {
+    local url final_url page tag
+    url="${RELEASE_PAGE_URL}?cb=$(date +%s)"
+    if has curl; then
+        final_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' "$url")" || return 1
+        tag="${final_url##*/}"
+        tag="${tag%%\?*}"
+    else
+        page="$(mktemp)" || return 1
+        wget -qO "$page" "$url" || { rm -f "$page"; return 1; }
+        tag="$(grep -oE '/snyype/linugon/releases/tag/v[0-9]+\.[0-9]+\.[0-9]+' "$page" | head -1 | sed 's#.*/##')"
+        rm -f "$page"
+    fi
+    [[ "$tag" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+    printf '%s\n' "$tag"
+}
+
 watch_enabled() { systemctl is-enabled --quiet linugon-sync.path 2>/dev/null; }
 
 enable_watch() {
