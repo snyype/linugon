@@ -1106,12 +1106,11 @@ main_menu() {
     local choice
     while true; do
         ((HAS_TUI)) || banner
-        choice="$(ui_menu "Linugon" " _      _ _  _ _   _  ____  _   _
-| |    | | \| | | | |/ ___|| | | |
-| |    | | .\` | | | | |  _ | | | |
-| |___ | | |\ | |_| | |_| || |_| |
-|_____||_|_| \_|\__, |\____| \___/
-                 |___/
+        choice="$(ui_menu "Linugon" "|      ___  |   | |   |  ___   ___  |   |
+|       |   ||  | |   | |     |   | ||  |
+|       |   | | | |   | |  __ |   | | | |
+|       |   |  || |   | |   | |   | |  ||
+|____  ___  |   | |___| |___| |___| |   |
 
 What would you like to do?" \
             1 "Quick install — everything (Apache, PHP, MySQL, phpMyAdmin, Composer)" \
