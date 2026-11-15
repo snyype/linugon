@@ -1,5 +1,10 @@
 # Changelog
 
+## [v2.6.0] - 2026-11-15
+
+- feat(tui): add command help menu
+
+
 ## [v2.5.0] - 2026-11-15
 
 - feat(tui): add Linugon update check
