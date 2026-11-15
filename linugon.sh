@@ -288,6 +288,25 @@ ui_yesno() {
     [[ ! "$ans" =~ ^[Nn] ]]
 }
 
+ui_go_back() {
+    local title="$1" text="$2" choice
+    choice="$(ui_menu "$title" "$text\n\nPress Esc or select Go back:" 0 "Go back")" || return 0
+    return 0
+}
+
+ui_restart_prompt() {
+    local title="$1" text="$2" ans size height width
+    if ((HAS_TUI)); then
+        size="$(ui_fit_size 20 100)"; read -r height width <<<"$size"
+        whiptail --title " $title " --backtitle "$BACKTITLE" \
+            --yes-button "Restart" --no-button "Go back" --yesno "\n$text" "$height" "$width"
+        return
+    fi
+    printf '\n%b\n' "$text" | sed 's/^/  /' >&2
+    read -rp "  Restart Linugon now? [Y/n]: " ans
+    [[ ! "$ans" =~ ^[Nn] ]]
+}
+
 ui_msg() {
     local title="$1" text="$2"
     if ((HAS_TUI)); then
@@ -695,12 +714,12 @@ self_update() {
     fi
     new="${tag#v}"
     if [ "$new" = "$VERSION" ]; then
-        if ((interactive)); then ui_msg "Linugon is up to date" "You are running the latest release, v$VERSION."; else ok "Linugon is already up to date: v$VERSION ($SELF_BIN)"; fi
+        if ((interactive)); then ui_go_back "Linugon is up to date" "You are running the latest release, v$VERSION."; else ok "Linugon is already up to date: v$VERSION ($SELF_BIN)"; fi
         return 0
     fi
     latest="$(printf '%s\n' "$VERSION" "$new" | sort -V | tail -1)"
     if [ "$latest" = "$VERSION" ]; then
-        if ((interactive)); then ui_msg "Linugon is up to date" "You are running v$VERSION, newer than the latest release v$new."; else info "Running v$VERSION; latest release is v$new. No downgrade applied."; fi
+        if ((interactive)); then ui_go_back "Linugon is up to date" "You are running v$VERSION, newer than the latest release v$new."; else info "Running v$VERSION; latest release is v$new. No downgrade applied."; fi
         return 0
     fi
     if ((interactive)); then
@@ -719,7 +738,13 @@ self_update() {
         rm -f "$script_tmp"; if ((interactive)); then ui_msg "Update failed" "Downloaded version did not match release v$new."; else err "Downloaded version did not match release v$new."; fi; return 1
     fi
     $SUDO install -m 755 "$script_tmp" "$SELF_BIN"; rm -f "$script_tmp"
-    if ((interactive)); then ui_msg "Linugon updated" "Updated from v$VERSION to v$new. Restart Linugon to use the new version."; else ok "Linugon updated: v$VERSION -> v$new ($SELF_BIN)"; fi
+    if ((interactive)); then
+        if ui_restart_prompt "Linugon updated" "Updated from v$VERSION to v$new."; then
+            exec "$SELF_BIN"
+        fi
+    else
+        ok "Linugon updated: v$VERSION -> v$new ($SELF_BIN)"
+    fi
 }
 watch_enabled() { systemctl is-enabled --quiet linugon-sync.path 2>/dev/null; }
 
