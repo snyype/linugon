@@ -1,5 +1,10 @@
 # Changelog
 
+## [v2.6.1] - 2026-11-15
+
+- fix(tui): add update restart and back controls
+
+
 ## [v2.6.0] - 2026-11-15
 
 - feat(tui): add command help menu
