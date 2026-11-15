@@ -1226,6 +1226,7 @@ What would you like to do?" \
             6 "Status" \
             7 "Update system packages" \
             8 "Check for Linugon updates" \
+            9 "Help — available commands" \
             0 "Exit")" || { clear; exit 0; }
         case "$choice" in
             1) ui_yesno "Quick install" "Install Apache, PHP, MySQL, phpMyAdmin and Composer,\nand turn on automatic virtual hosts for $WWW_DIR?" \
@@ -1237,6 +1238,7 @@ What would you like to do?" \
             6) ui_msg "Status" "$(status_text)" ;;
             7) clear; update_system; pause ;;
             8) sudo_keepalive; self_update 1 ;;
+            9) ui_msg "Command-line help" "$(usage)" ;;
             0) clear; exit 0 ;;
         esac
     done
