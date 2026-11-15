@@ -921,6 +921,61 @@ service_available() {
     systemctl list-unit-files "$1.service" 2>/dev/null | grep -q "$1"
 }
 
+service_packages() {
+    local service="$1" package state base
+    while IFS=$'\t' read -r package state; do
+        [[ "$state" == ii* ]] || continue
+        base="${package%%:*}"
+        case "$service:$base" in
+            apache2:apache2|apache2:apache2-bin|apache2:apache2-data|apache2:apache2-utils) printf '%s\n' "$package" ;;
+            mysql:mysql-server|mysql:mysql-server-*) printf '%s\n' "$package" ;;
+            mariadb:mariadb-server|mariadb:mariadb-server-*) printf '%s\n' "$package" ;;
+            redis-server:redis-server) printf '%s\n' "$package" ;;
+        esac
+    done < <(dpkg-query -W -f='${binary:Package}\t${db:Status-Abbrev}\n' 2>/dev/null)
+}
+
+uninstall_service() {
+    local service="$1" label packages=()
+    mapfile -t packages < <(service_packages "$service")
+    if [ ${#packages[@]} -eq 0 ]; then
+        ui_msg "Uninstall service" "No installed packages were found for $service."
+        return
+    fi
+    label="$service"
+    case "$service" in
+        apache2) label="Apache" ;;
+        mysql|mariadb) label="Database ($service)" ;;
+        redis-server) label="Redis" ;;
+    esac
+    ui_yesno "Uninstall $label" "Remove the installed $label service packages with apt?\n\nThis removes the service packages without running apt purge." || return
+    sudo_keepalive
+    run_step "Removing $label service packages" $SUDO apt-get remove -y -q "${packages[@]}"
+    pause
+}
+
+uninstall_all_services() {
+    local db service package packages=() service_pkgs=()
+    local -A seen=()
+    db="$(db_service)"
+    for service in apache2 "$db" redis-server; do
+        mapfile -t service_pkgs < <(service_packages "$service")
+        for package in "${service_pkgs[@]}"; do
+            [ -n "${seen[$package]:-}" ] && continue
+            seen[$package]=1
+            packages+=("$package")
+        done
+    done
+    if [ ${#packages[@]} -eq 0 ]; then
+        ui_msg "Uninstall all services" "No installed Linugon service packages were found."
+        return
+    fi
+    ui_yesno "Uninstall all services" "Remove all installed Apache, database, and Redis service packages?\n\nThis removes the packages without running apt purge." || return
+    sudo_keepalive
+    run_step "Removing all service packages" $SUDO apt-get remove -y -q "${packages[@]}"
+    pause
+}
+
 status_text() {
     local apache_v php_v db_v mods n
     apache_v="$(/usr/sbin/apache2 -v 2>/dev/null | sed -n 's/.*Apache\/\([0-9.]*\).*/\1/p')"
@@ -1073,8 +1128,8 @@ menu_service_one() {
     selected="$(ui_menu "Select service" "Choose the service to manage:" "${items[@]}")" || return
     [ "$selected" = 0 ] && return
     choice="$(ui_menu "Manage $selected" "Current state: $(svc "$selected")" \
-        1 "Start $selected" 2 "Stop $selected" 3 "Restart $selected" 0 "← Back")" || return
-    case "$choice" in 1) action=start ;; 2) action=stop ;; 3) action=restart ;; *) return ;; esac
+        1 "Start $selected" 2 "Stop $selected" 3 "Restart $selected" 4 "Uninstall $selected" 0 "← Back")" || return
+    case "$choice" in 1) action=start ;; 2) action=stop ;; 3) action=restart ;; 4) uninstall_service "$selected"; return ;; *) return ;; esac
     clear; sudo_keepalive
     $SUDO systemctl "$action" "$selected" && ok "$action $selected" || err "$action $selected failed"
     pause
@@ -1085,9 +1140,10 @@ menu_services() {
     db="$(db_service)"
     while true; do
         choice="$(ui_menu "Services" "Apache: $(svc apache2)   ·   Database: $(svc "$db")" \
-            1 "Start all" 2 "Stop all" 3 "Restart all" 4 "Manage one service" 0 "← Back")" || return
+            1 "Start all" 2 "Stop all" 3 "Restart all" 4 "Manage one service" 5 "Uninstall all services" 0 "← Back")" || return
         case "$choice" in
             4) menu_service_one; continue ;;
+            5) uninstall_all_services; continue ;;
             1) action=start ;;
             2) action=stop ;;
             3) action=restart ;;
